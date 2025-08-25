@@ -133,8 +133,12 @@ OPENAI_API_KEY=your_glm_api_key_here
 OPENAI_MODEL=glm-4.5
 ```
 
-#### ❌ Deepseek (Currently Failing)
-Note: Deepseek configuration is currently not working due to API compatibility issues.
+#### ✅ DeepSeek (Working)
+```bash
+OPENAI_BASE_URL=https://api.deepseek.com/v1/
+OPENAI_API_KEY=your_deepseek_api_key_here
+OPENAI_MODEL=deepseek-chat
+```
 
 See `.env.example` for more configuration details.
 
