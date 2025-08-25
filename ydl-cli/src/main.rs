@@ -118,6 +118,9 @@ impl From<CliSubtitleType> for SubtitleType {
 
 #[tokio::main]
 async fn main() -> YdlResult<()> {
+    // Load environment variables from .env file
+    dotenvy::dotenv().ok();
+    
     let cli = Cli::parse();
 
     // Initialize logging
@@ -228,7 +231,7 @@ async fn generate_blog(downloader: &Ydl, cli: &Cli) -> YdlResult<()> {
         }
     };
 
-    println!("Generating blog content using GPT-5...");
+    println!("Generating blog content using configured model...");
 
     // Generate the blog
     match blog_generator

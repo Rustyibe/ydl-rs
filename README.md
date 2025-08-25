@@ -117,7 +117,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Environment Variables
 
-- `OPENAI_API_KEY` - Required for blog generation feature
+The tool supports OpenAI-compatible APIs for blog generation. You can configure different models by setting the following environment variables:
+
+### Required for Blog Generation
+- `OPENAI_API_KEY` - Your API key for the AI service
+- `OPENAI_BASE_URL` - Base URL of the AI service API
+- `OPENAI_MODEL` - Model name to use
+
+### Currently Supported Models
+
+#### ✅ GLM Models (Working)
+```bash
+OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+OPENAI_API_KEY=your_glm_api_key_here
+OPENAI_MODEL=glm-4.5
+```
+
+#### ❌ Deepseek (Currently Failing)
+Note: Deepseek configuration is currently not working due to API compatibility issues.
+
+See `.env.example` for more configuration details.
 
 ## Project Structure
 

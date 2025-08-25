@@ -1,18 +1,40 @@
-use async_openai::{
-    config::OpenAIConfig,
-    types::{
-        ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
-        ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
-        ChatCompletionRequestUserMessageContent, CreateChatCompletionRequest,
-    },
-    Client,
-};
+use serde::{Deserialize, Serialize};
 use std::env;
 use tracing::{debug, info};
 use ydl::{VideoMetadata, YdlError, YdlResult};
 
+#[derive(Debug, Serialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ChatRequest {
+    model: String,
+    messages: Vec<ChatMessage>,
+    max_tokens: Option<u32>,
+    temperature: Option<f32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatChoice {
+    message: ChatResponseMessage,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatResponseMessage {
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatResponse {
+    choices: Vec<ChatChoice>,
+}
+
 pub struct BlogGenerator {
-    client: Client<OpenAIConfig>,
+    api_key: String,
+    base_url: String,
 }
 
 impl BlogGenerator {
@@ -22,10 +44,10 @@ impl BlogGenerator {
             message: "OPENAI_API_KEY environment variable not set".to_string(),
         })?;
 
-        let config = OpenAIConfig::new().with_api_key(api_key);
-        let client = Client::with_config(config);
+        let base_url = env::var("OPENAI_BASE_URL")
+            .unwrap_or_else(|_| "https://api.openai.com/v1/".to_string());
 
-        Ok(Self { client })
+        Ok(Self { api_key, base_url })
     }
 
     pub async fn generate_blog(
@@ -44,37 +66,73 @@ impl BlogGenerator {
         let system_prompt = self.build_system_prompt(target_language);
         let user_prompt = self.build_user_prompt(subtitle_content, metadata);
 
-        let request = CreateChatCompletionRequest {
-            model: "gpt-5".to_string(), // Using GPT-5 for superior content generation
+        // Get model from environment or use default
+        let model = env::var("OPENAI_MODEL").unwrap_or_else(|_| "gpt-3.5-turbo".to_string());
+        
+        // Create the request
+        // Set max_tokens based on model (DeepSeek has a limit of 8192)
+        let max_tokens = if model.contains("deepseek") {
+            Some(8000) // Leave some room under the 8192 limit
+        } else {
+            Some(20000)
+        };
+        
+        let request = ChatRequest {
+            model,
             messages: vec![
-                ChatCompletionRequestMessage::System(ChatCompletionRequestSystemMessage {
-                    content: ChatCompletionRequestSystemMessageContent::Text(system_prompt),
-                    name: None,
-                }),
-                ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
-                    content: ChatCompletionRequestUserMessageContent::Text(user_prompt),
-                    name: None,
-                }),
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: system_prompt,
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: user_prompt,
+                },
             ],
-            max_completion_tokens: Some(20000),
-            ..Default::default()
+            max_tokens,
+            temperature: Some(0.7),
         };
 
-        let response =
-            self.client
-                .chat()
-                .create(request)
-                .await
-                .map_err(|e| YdlError::Processing {
-                    message: format!("OpenAI API error: {}", e),
-                })?;
+        // Make the HTTP request
+        let client = reqwest::Client::new();
+        let url = format!("{}chat/completions", self.base_url);
+        
+        debug!("Making request to: {}", url);
+        
+        let response = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| YdlError::Processing {
+                message: format!("Failed to send request: {}", e),
+            })?;
 
-        let blog_content = response
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            return Err(YdlError::Processing {
+                message: format!("API request failed with status {}: {}", status, error_text),
+            });
+        }
+
+        let response_body: ChatResponse = response
+            .json()
+            .await
+            .map_err(|e| YdlError::Processing {
+                message: format!("Failed to parse response: {}", e),
+            })?;
+
+        let blog_content = response_body
             .choices
-            .first()
-            .and_then(|choice| choice.message.content.as_ref())
+            .first().map(|choice| &choice.message.content)
             .ok_or_else(|| YdlError::Processing {
-                message: "No content received from OpenAI API".to_string(),
+                message: "No content received from API".to_string(),
             })?;
 
         info!(

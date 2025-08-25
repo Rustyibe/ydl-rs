@@ -115,7 +115,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 环境变量
 
-- `OPENAI_API_KEY` - 博客生成功能所需
+该工具支持 OpenAI 兼容的 API 用于博客生成。您可以通过设置以下环境变量来配置不同的模型：
+
+### 博客生成所需
+- `OPENAI_API_KEY` - 您的 AI 服务 API 密钥
+- `OPENAI_BASE_URL` - AI 服务 API 的基础 URL
+- `OPENAI_MODEL` - 要使用的模型名称
+
+### 当前支持的模型
+
+#### ✅ GLM 模型（正常工作）
+```bash
+OPENAI_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
+OPENAI_API_KEY=your_glm_api_key_here
+OPENAI_MODEL=glm-4.5
+```
+
+#### ❌ Deepseek（当前失败）
+注意：由于 API 兼容性问题，Deepseek 配置当前无法正常工作。
+
+更多配置详情请参考 `.env.example` 文件。
 
 ## 项目结构
 
